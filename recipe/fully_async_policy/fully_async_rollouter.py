@@ -561,7 +561,9 @@ class FullyAsyncRollouter(FullyAsyncRayPPOTrainer):
             print("[FullyAsyncRollouter] Streaming process completed")
 
         except Exception as e:
+            import traceback
             print(f"[FullyAsyncRollouter] Streaming process exception:{e}")
+            traceback.print_exc()
 
         finally:
             if self.processor_task:
