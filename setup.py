@@ -29,7 +29,8 @@ install_requires = [
     "datasets",
     "dill",
     "hydra-core",
-    "numpy<2.0.0",
+    # required to support vllm 0.14.1
+    "numpy",
     "pandas",
     "peft",
     "pyarrow>=19.0.0",
