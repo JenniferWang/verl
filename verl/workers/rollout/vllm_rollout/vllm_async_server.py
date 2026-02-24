@@ -97,6 +97,11 @@ class ExternalZeroMQDistributedExecutor(Executor):
             socket.connect(address)
             self.sockets.append(socket)
 
+        # vLLM 0.14+ checks distributed_executor_backend by string in
+        # init_device to skip the local_world_size <= visible_devices
+        # assertion for externally launched workers. The executor is already
+        # instantiated, so overwriting the config is safe.
+        self.vllm_config.parallel_config.distributed_executor_backend = "external_launcher"
         kwargs = dict(
             vllm_config=self.vllm_config,
             local_rank=None,
