@@ -25,7 +25,7 @@ from omegaconf import OmegaConf
 from verl.experimental.dataset.sampler import AbstractSampler
 from verl.experimental.reward_loop import migrate_legacy_reward_impl
 from verl.trainer.constants_ppo import get_ppo_ray_runtime_env
-from verl.trainer.ppo.ray_trainer import RayPPOTrainer
+from verl.trainer.ppo.trainer import PPOTrainer
 from verl.trainer.ppo.utils import need_critic, need_reference_policy
 from verl.utils.config import validate_config
 from verl.utils.device import auto_set_device, is_cuda_available
@@ -123,7 +123,7 @@ class TaskRunner:
     def add_actor_rollout_worker(self, config):
         """Add actor rollout worker based on the actor strategy."""
         from verl.single_controller.ray import RayWorkerGroup
-        from verl.trainer.ppo.ray_trainer import Role
+        from verl.trainer.ppo.trainer import Role
 
         use_legacy_worker_impl = config.trainer.get("use_legacy_worker_impl", "auto")
 
@@ -144,7 +144,7 @@ class TaskRunner:
                 role = Role.ActorRolloutRef
             else:
                 role = Role.ActorRollout
-            self.role_worker_mapping[role] = ray.remote(actor_rollout_cls)
+            self.role_worker_mapping[role] = actor_rollout_cls
             self.mapping[role] = "global_pool"
             return actor_rollout_cls, ray_worker_group_cls
 
@@ -173,7 +173,7 @@ class TaskRunner:
         else:
             raise NotImplementedError
 
-        self.role_worker_mapping[Role.ActorRollout] = ray.remote(actor_rollout_cls)
+        self.role_worker_mapping[Role.ActorRollout] = actor_rollout_cls
         self.mapping[Role.ActorRollout] = "global_pool"
         return actor_rollout_cls, ray_worker_group_cls
 
@@ -210,9 +210,9 @@ class TaskRunner:
         else:
             raise NotImplementedError
 
-        from verl.trainer.ppo.ray_trainer import Role
+        from verl.trainer.ppo.trainer import Role
 
-        self.role_worker_mapping[Role.Critic] = ray.remote(CriticWorker)
+        self.role_worker_mapping[Role.Critic] = CriticWorker
         self.mapping[Role.Critic] = "global_pool"
 
     def init_resource_pool_mgr(self, config):
@@ -235,14 +235,14 @@ class TaskRunner:
             config.reward.reward_model.nnodes = config.trainer.nnodes
             config.reward.reward_model.n_gpus_per_node = config.trainer.n_gpus_per_node
 
-        from verl.trainer.ppo.ray_trainer import ResourcePoolManager
+        from verl.trainer.ppo.trainer import ResourcePoolManager
 
         resource_pool_manager = ResourcePoolManager(resource_pool_spec=resource_pool_spec, mapping=self.mapping)
         return resource_pool_manager
 
     def add_reward_model_resource_pool(self, config):
         """Add reward model worker if enabled."""
-        from verl.trainer.ppo.ray_trainer import Role
+        from verl.trainer.ppo.trainer import Role
 
         if config.reward.reward_model.enable:
             # we do not use reward model workers, so we only register reward model in resource pool
@@ -254,7 +254,7 @@ class TaskRunner:
 
     def add_ref_policy_worker(self, config, ref_policy_cls):
         """Add reference policy worker if KL loss or KL reward is used."""
-        from verl.trainer.ppo.ray_trainer import Role
+        from verl.trainer.ppo.trainer import Role
 
         # Ref policy has been fused into ActorRolloutRefWorker in new model engine,
         # we don't need to add a separate ref policy worker group.
@@ -263,7 +263,7 @@ class TaskRunner:
             return
 
         if need_reference_policy(config):
-            self.role_worker_mapping[Role.RefPolicy] = ray.remote(ref_policy_cls)
+            self.role_worker_mapping[Role.RefPolicy] = ref_policy_cls
             self.mapping[Role.RefPolicy] = "global_pool"
 
     def run(self, config):
@@ -340,13 +340,13 @@ class TaskRunner:
         train_sampler = create_rl_sampler(config.data, train_dataset)
 
         # Initialize the PPO trainer.
-        trainer = RayPPOTrainer(
+        trainer = PPOTrainer(
             config=config,
             tokenizer=tokenizer,
             processor=processor,
             role_worker_mapping=self.role_worker_mapping,
             resource_pool_manager=resource_pool_manager,
-            ray_worker_group_cls=ray_worker_group_cls,
+            worker_group_cls=ray_worker_group_cls,
             train_dataset=train_dataset,
             val_dataset=val_dataset,
             collate_fn=collate_fn,

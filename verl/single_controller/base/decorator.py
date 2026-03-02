@@ -16,8 +16,7 @@ from functools import partial, wraps
 from types import FunctionType
 
 from tensordict import TensorDict
-
-from verl.protocol import DataProtoFuture, _padding_size_key
+from verl.protocol import _padding_size_key, DataProtoFuture
 from verl.utils.py_functional import DynamicEnum
 from verl.utils.tensordict_utils import chunk_tensordict, concat_tensordict, contiguous
 
@@ -229,14 +228,17 @@ def dispatch_nd_compute(dp_rank_mapping: list[int], dp_size, worker_group, *args
     import os
 
     from verl.single_controller.base.worker_group import WorkerGroup
-    from verl.utils.ray_utils import parallel_put
 
     assert isinstance(worker_group, WorkerGroup)
 
-    max_workers = max(1, min(len(args[0]), os.cpu_count()))
+    if worker_group.backend == "ray":
+        from verl.utils.ray_utils import parallel_put
 
-    args = [parallel_put(arg, max_workers=max_workers) for arg in args]
-    kwargs = {k: parallel_put(v, max_workers=max_workers) for k, v in kwargs.items()}
+        max_workers = max(1, min(len(args[0]), os.cpu_count()))
+        args = [parallel_put(arg, max_workers=max_workers) for arg in args]
+        kwargs = {
+            k: parallel_put(v, max_workers=max_workers) for k, v in kwargs.items()
+        }
 
     all_args = []
     for arg in args:
@@ -285,8 +287,8 @@ def collect_nd_compute_dataproto(collect_mask: list[bool], worker_group, output)
     from verl.protocol import DataProto
 
     for o in output:
-        assert isinstance(o, DataProto | ray.ObjectRef | TensorDict), (
-            f"expecting {o} to be DataProto | ray.ObjectRef | TensorDict, but got {type(o)}"
+        assert isinstance(o, DataProto | ray.ObjectRef | BatchMeta | TensorDict), (
+            f"expecting {o} to be DataProto | ray.ObjectRef | BatchMeta | TensorDict, but got {type(o)}"
         )
     return _concat_data_proto_or_future(output)
 

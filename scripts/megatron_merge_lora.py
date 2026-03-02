@@ -86,7 +86,7 @@ def main_task(config):
     OmegaConf.resolve(config)
 
     ray_cls_with_init = RayClassWithInitArgs(
-        cls=ray.remote(CustomSaveWorker), config=config.actor_rollout_ref, role="actor"
+        cls=CustomSaveWorker, config=config.actor_rollout_ref, role="actor"
     )
     resource_pool = RayResourcePool(process_on_nodes=[config.trainer.n_gpus_per_node] * config.trainer.nnodes)
 

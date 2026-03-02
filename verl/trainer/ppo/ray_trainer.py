@@ -1,4 +1,6 @@
 # Copyright 2024 Bytedance Ltd. and/or its affiliates
+# Copyright 2023-2024 SGLang Team
+# Copyright 2025 ModelBest Inc. and/or its affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,8 +13,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Backwards-compatibility shim. Import from verl.trainer.ppo.trainer instead."""
 
-from .worker import Worker
-from .worker_group import ClassWithInitArgs, ResourcePool, ResourcePoolManager, WorkerGroup
+from verl.trainer.ppo.trainer import *  # noqa: F401, F403
+from verl.trainer.ppo.trainer import PPOTrainer  # noqa: F401
 
-__all__ = ["Worker", "WorkerGroup", "ClassWithInitArgs", "ResourcePool", "ResourcePoolManager"]
+RayPPOTrainer = PPOTrainer
