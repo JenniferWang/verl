@@ -29,7 +29,7 @@ def init_agent_loop_manager(config: DictConfig) -> AgentLoopManager | RayWorkerG
     # =========================== 1. Create hybrid ActorRollout workers ===========================
     actor_rollout_cls = AsyncActorRolloutRefWorker
     role_worker_mapping = {
-        Role.ActorRollout: ray.remote(actor_rollout_cls),
+        Role.ActorRollout: actor_rollout_cls,
     }
 
     global_pool_id = "global_pool"

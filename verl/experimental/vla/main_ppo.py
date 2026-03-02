@@ -115,9 +115,9 @@ def main_task(config):
 
     role_worker_mapping = {
         # Role.Critic: ray.remote(RobActorRolloutRefWorker),
-        Role.ActorRollout: ray.remote(RobActorRolloutRefWorker),
-        # Role.RefPolicy: ray.remote(RobActorRolloutRefWorker),
-        Role.Env: ray.remote(EnvWorker),
+        Role.ActorRollout: RobActorRolloutRefWorker,
+        # Role.RefPolicy: RobActorRolloutRefWorker,
+        Role.Env: EnvWorker,
     }
 
     train_rollout_pool_id = "train_rollout_pool"

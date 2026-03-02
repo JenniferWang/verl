@@ -16,10 +16,17 @@ from functools import partial, wraps
 from types import FunctionType
 
 from tensordict import TensorDict
-
-from verl.protocol import DataProtoFuture, _padding_size_key
+from verl.protocol import _padding_size_key, DataProtoFuture
 from verl.utils.py_functional import DynamicEnum
 from verl.utils.tensordict_utils import chunk_tensordict, concat_tensordict, contiguous
+
+# Lazy Ray ObjectRef - avoids hard dependency on ray at module level
+try:
+    import ray
+
+    _RayObjectRef = ray.ObjectRef
+except ImportError:
+    _RayObjectRef = None
 
 # here we add a magic number of avoid user-defined function already have this attribute
 MAGIC_ATTR = "attrs_3141562937"
@@ -150,8 +157,6 @@ def collect_all_to_all(worker_group, output):
 
 
 def _concat_data_proto_or_future(output: list):
-    import ray
-
     from verl.protocol import DataProto, DataProtoFuture
 
     # make sure all the elements in output has the same type
@@ -162,7 +167,7 @@ def _concat_data_proto_or_future(output: list):
 
     if isinstance(o, DataProto):
         return DataProto.concat(output)
-    elif isinstance(o, ray.ObjectRef):
+    elif _RayObjectRef is not None and isinstance(o, _RayObjectRef):
         return DataProtoFuture.concat(output)
     elif isinstance(o, TensorDict):
         return concat_tensordict(output)
@@ -214,12 +219,15 @@ def dispatch_dp_compute_data_proto_with_func(worker_group, *args, **kwargs):
 
 
 def collect_dp_compute_data_proto(worker_group, output):
-    import ray
-
     from verl.protocol import DataProto
 
     for o in output:
-        assert isinstance(o, DataProto | ray.ObjectRef), f"expecting {o} to be DataProto, but got {type(o)}"
+        is_valid = isinstance(o, DataProto)
+        if not is_valid and _RayObjectRef is not None:
+            is_valid = isinstance(o, _RayObjectRef)
+        assert is_valid, (
+            f"expecting {o} to be DataProto (or ObjectRef), but got {type(o)}"
+        )
 
     output = collect_dp_compute(worker_group, output)
     return _concat_data_proto_or_future(output)
@@ -229,14 +237,17 @@ def dispatch_nd_compute(dp_rank_mapping: list[int], dp_size, worker_group, *args
     import os
 
     from verl.single_controller.base.worker_group import WorkerGroup
-    from verl.utils.ray_utils import parallel_put
 
     assert isinstance(worker_group, WorkerGroup)
 
-    max_workers = max(1, min(len(args[0]), os.cpu_count()))
+    if worker_group.backend == "ray":
+        from verl.utils.ray_utils import parallel_put
 
-    args = [parallel_put(arg, max_workers=max_workers) for arg in args]
-    kwargs = {k: parallel_put(v, max_workers=max_workers) for k, v in kwargs.items()}
+        max_workers = max(1, min(len(args[0]), os.cpu_count()))
+        args = [parallel_put(arg, max_workers=max_workers) for arg in args]
+        kwargs = {
+            k: parallel_put(v, max_workers=max_workers) for k, v in kwargs.items()
+        }
 
     all_args = []
     for arg in args:
@@ -280,13 +291,15 @@ def dispatch_nd_compute_dataproto(dp_rank_mapping: list[int], dp_size, worker_gr
 
 def collect_nd_compute_dataproto(collect_mask: list[bool], worker_group, output):
     output = collect_nd_compute(collect_mask, worker_group, output)
-    import ray
-
     from verl.protocol import DataProto
 
+    _valid_types = (DataProto, BatchMeta, TensorDict)
     for o in output:
-        assert isinstance(o, DataProto | ray.ObjectRef | TensorDict), (
-            f"expecting {o} to be DataProto | ray.ObjectRef | TensorDict, but got {type(o)}"
+        is_valid = isinstance(o, _valid_types)
+        if not is_valid and _RayObjectRef is not None:
+            is_valid = isinstance(o, _RayObjectRef)
+        assert is_valid, (
+            f"expecting {o} to be DataProto | ObjectRef | BatchMeta | TensorDict, but got {type(o)}"
         )
     return _concat_data_proto_or_future(output)
 

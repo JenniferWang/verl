@@ -302,7 +302,7 @@ class CheckpointEngineWorker(Worker):
         return self.server_adapter.is_leader_rank
 
 
-_worker_cls = ray.remote(CheckpointEngineWorker)
+_worker_cls = CheckpointEngineWorker
 
 
 class CheckpointEngineManager:
@@ -404,6 +404,7 @@ class CheckpointEngineManager:
 
         # 0. update weights for sync training with colocated trainer and rollout
         if self.backend == "naive":
+            # NOTE: ppo main trainer hits this branch that has the least dependency on Ray
             ray.get(self.trainer.update_weights())
             return
 
